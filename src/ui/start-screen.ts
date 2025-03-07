@@ -262,6 +262,18 @@ export default class StartScreen extends UIComponent {
     this.mainImage.style.objectFit = "cover";
     this.mainMenuContainer.appendChild(this.mainImage);
 
+    // Add logo at the top of the screen
+    const logoImage = document.createElement("img");
+    logoImage.src = "/wordlogo_white_full.png";
+    logoImage.style.position = "absolute";
+    logoImage.style.top = "100px";
+    logoImage.style.left = "50%";
+    logoImage.style.transform = "translateX(-50%)";
+    logoImage.style.maxWidth = "30%";
+    logoImage.style.height = "auto";
+    logoImage.style.zIndex = "1";
+    this.mainMenuContainer.appendChild(logoImage);
+
     // Create menu items based on the original game
     const menuItemsData = [
       { text: "Start New Game", callback: () => this.handleStart(), y: 274 },
