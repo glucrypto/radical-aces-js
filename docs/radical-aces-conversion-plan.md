@@ -154,11 +154,6 @@ The Java codebase is located in the `java` repository, besure to check that when
     - [ ] Create asset compression and optimization
     - [ ] Configure deployment to hosting service
 
-## Next Steps
+## Issuses
 
-Our next task is to move on to Phase 6:
-
-1. Implement enemy AI based on the original game
-2. Add weapons systems for the player aircraft
-
-## Recent Updates
+- [ ] Fix control of plane, it trends downwards when flying
