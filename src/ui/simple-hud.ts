@@ -16,6 +16,9 @@ export class SimpleHUD {
   private aircraftModelElement: HTMLDivElement;
   private throttleMeter: HTMLDivElement;
   private throttleBar: HTMLDivElement;
+  private weaponInfoElement: HTMLDivElement;
+  private ammoBarContainer: HTMLDivElement;
+  private ammoBar: HTMLDivElement;
   private options: Required<HUDOptions>;
 
   // Default options
@@ -128,6 +131,40 @@ export class SimpleHUD {
       marker.style.bottom = `${position}%`;
       this.throttleMeter.appendChild(marker);
     }
+
+    // Create weapon info display
+    this.weaponInfoElement = document.createElement("div");
+    this.weaponInfoElement.style.position = "absolute";
+    this.weaponInfoElement.style.bottom = "20px";
+    this.weaponInfoElement.style.left = "20px";
+    this.weaponInfoElement.style.padding = "5px 10px";
+    this.weaponInfoElement.style.backgroundColor = this.options.backgroundColor;
+    this.weaponInfoElement.style.color = this.options.textColor;
+    this.weaponInfoElement.style.fontFamily = this.options.fontFamily;
+    this.weaponInfoElement.style.fontSize = `${this.options.fontSize}px`;
+    this.weaponInfoElement.style.borderRadius = "4px";
+    this.container.appendChild(this.weaponInfoElement);
+
+    // Create ammo bar container
+    this.ammoBarContainer = document.createElement("div");
+    this.ammoBarContainer.style.position = "absolute";
+    this.ammoBarContainer.style.bottom = "60px";
+    this.ammoBarContainer.style.left = "20px";
+    this.ammoBarContainer.style.width = "200px";
+    this.ammoBarContainer.style.height = "10px";
+    this.ammoBarContainer.style.backgroundColor = "rgba(0, 0, 0, 0.7)";
+    this.ammoBarContainer.style.border = "1px solid #ffffff";
+    this.ammoBarContainer.style.borderRadius = "4px";
+    this.container.appendChild(this.ammoBarContainer);
+
+    // Create ammo bar fill
+    this.ammoBar = document.createElement("div");
+    this.ammoBar.style.width = "100%";
+    this.ammoBar.style.height = "100%";
+    this.ammoBar.style.backgroundColor = "#00ff00";
+    this.ammoBar.style.borderRadius = "2px";
+    this.ammoBar.style.transition = "width 0.3s ease";
+    this.ammoBarContainer.appendChild(this.ammoBar);
   }
 
   /**
@@ -174,6 +211,19 @@ export class SimpleHUD {
     } else {
       this.throttleBar.style.backgroundColor = "#ffdd00"; // Yellow at low throttle
     }
+  }
+
+  /**
+   * Update weapon information on the HUD
+   * @param weaponName Name of the current weapon
+   */
+  public updateWeaponInfo(weaponName: string): void {
+    // Set the text content to just show the weapon name
+    this.weaponInfoElement.textContent = `WEAPON: ${weaponName}`;
+
+    // Always show a full green bar since we don't track ammo/reloading in Java version
+    this.ammoBar.style.width = "100%";
+    this.ammoBar.style.backgroundColor = "#00ff00"; // Green
   }
 
   /**

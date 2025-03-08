@@ -44,16 +44,16 @@ export default class PlayerAircraft {
 
     // Set characteristics for arcade-style flight
     // High values make controls more responsive
-    this.maxSpeed = config.maxSpeed || 200; // High max speed for excitement
-    this.accelerationRate = config.acceleration || 0.2; // Quick acceleration
-    this.decelerationRate = config.deceleration || 0.2; // Quick deceleration
-    this.turnRate = config.turnRate || 0.2; // Snappy turning
-    this.pitchRate = config.pitchRate || 0.2; // Responsive pitch
-    this.rollRate = config.rollRate || 0.2; // Quick rolling
+    this.maxSpeed = config.maxSpeed || 200;
+    this.accelerationRate = config.acceleration || 0.2;
+    this.decelerationRate = config.deceleration || 0.2;
+    this.turnRate = config.turnRate || 0.2;
+    this.pitchRate = config.pitchRate || 0.2;
+    this.rollRate = config.rollRate || 0.2;
     this.modelType = config.modelType || 1;
 
-    // Start with some throttle for immediate movement
-    this.throttle = 0.5;
+    // Start with zero throttle for no immediate movement
+    this.throttle = 0.0;
     this.isAccelerating = false;
     this.isDecelerating = false;
 
@@ -263,44 +263,40 @@ export default class PlayerAircraft {
   }
 
   private updatePhysics(deltaTime: number): void {
-    // RIDICULOUS SPEED CONTROLS - Absurdly fast
-
-    // Gentle throttle transitions
+    // Faster throttle transitions
     if (this.isAccelerating) {
-      this.throttle = Math.min(this.throttle + 0.1, 1);
+      this.throttle = Math.min(this.throttle + 0.05, 1); // Maintained at 0.05 for good acceleration
     } else if (this.isDecelerating) {
-      this.throttle = Math.max(this.throttle - 0.1, 0);
+      this.throttle = Math.max(this.throttle - 0.08, 0); // Maintained at 0.08 for good deceleration
     }
 
-    // Base speed calculation - RIDICULOUS speed
-    const minSpeedPercent = 0.2; // 20% minimum speed
-    const baseSpeed =
-      this.maxSpeed * (minSpeedPercent + this.throttle * (1 - minSpeedPercent));
+    // Base speed calculation - directly proportional to throttle with no minimum
+    const baseSpeed = this.maxSpeed * this.throttle;
 
     // Calculate velocity based on aircraft direction
     const direction = new THREE.Vector3(0, 0, 1);
     direction.applyEuler(this.rotation);
 
-    // RIDICULOUS SPEED
-    const speedScale = 1.0;
-
-    // Apply movement based on aircraft orientation
-    this.velocity.x = direction.x * baseSpeed * speedScale;
-    this.velocity.y = direction.y * baseSpeed * speedScale;
-    this.velocity.z = direction.z * baseSpeed * speedScale;
+    // Apply higher movement scaling based on aircraft orientation and throttle
+    // Further increased the speed multiplier for higher maximum speed
+    const speedMultiplier = 3.0; // Increased from 1.8 to 3.0 for much higher speeds
+    this.velocity.x = direction.x * baseSpeed * deltaTime * speedMultiplier;
+    this.velocity.y = direction.y * baseSpeed * deltaTime * speedMultiplier;
+    this.velocity.z = direction.z * baseSpeed * deltaTime * speedMultiplier;
 
     // Simple lift and gravity
     if (this.throttle > 0.3) {
-      // Apply lift
-      this.velocity.y += 0.003;
+      // Apply lift proportional to throttle
+      this.velocity.y += 0.005 * this.throttle * deltaTime * 60; // Maintained good lift
     }
 
-    // Apply gravity
-    this.velocity.y -= 0.002;
+    // Apply gravity (constant regardless of throttle)
+    this.velocity.y -= 0.003 * deltaTime * 60; // Maintained balanced gravity
   }
 
   private updateTransform(): void {
-    // Apply velocity directly to position
+    // Velocities are already scaled by deltaTime in updatePhysics,
+    // so we apply them directly to the position
     this.mesh.position.x += this.velocity.x;
     this.mesh.position.y += this.velocity.y;
     this.mesh.position.z += this.velocity.z;

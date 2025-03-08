@@ -4,21 +4,27 @@ import InputManager, { InputKey } from "../core/input";
 import { Level } from "../core/levels/level";
 import { LevelLoader } from "../core/levels/level-loader";
 import TimeManager from "../core/time";
-import PlayerAircraft from "../entities/player/PlayerAircraft";
+import PlayerAircraft, {
+  PlayerAircraftConfig,
+} from "../entities/player/PlayerAircraft";
 import { Scene } from "../scenes/Scene";
 import { SimpleHUD } from "../ui/simple-hud";
+import ProjectileManager from "../weapons/ProjectileManager";
+import WeaponSystem from "../weapons/WeaponSystem";
 
 export class GameScene implements Scene {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private playerAircraft: PlayerAircraft;
-  private followCamOffset: THREE.Vector3 = new THREE.Vector3(0, 3, 1);
+  private followCamOffset: THREE.Vector3 = new THREE.Vector3(0, 10, 30);
   private hud: SimpleHUD;
   private levelLoader: LevelLoader;
   private currentLevel: Level | null = null;
   private assetManager: AssetManager;
   private currentLevelId: number = 0;
   private currentLookTarget: THREE.Vector3 | null = null;
+  private projectileManager: ProjectileManager;
+  private weaponSystem: WeaponSystem;
 
   constructor(
     scene: THREE.Scene,
@@ -39,23 +45,26 @@ export class GameScene implements Scene {
     // Initialize the level loader
     this.levelLoader = new LevelLoader(this.assetManager);
 
-    // Initialize the player aircraft
-    this.playerAircraft = new PlayerAircraft({
-      maxSpeed: 100,
-      acceleration: 0.05,
-      deceleration: 0.02,
-      turnRate: 0.02,
-      pitchRate: 0.02,
-      rollRate: 0.03,
-      modelType: 1, // E-7 Sky Bullet
-    });
+    // Create projectile manager
+    this.projectileManager = new ProjectileManager(this.scene);
 
-    // Add the player aircraft to the scene
+    // Initialize the player aircraft with slower speed settings
+    const playerConfig: PlayerAircraftConfig = {
+      maxSpeed: 200, // Restored to the original higher speed
+      acceleration: 0.15, // Increased for faster acceleration
+      deceleration: 0.15, // Increased for faster deceleration
+      turnRate: 0.12, // Keeping slightly reduced turn rate for better control
+      pitchRate: 0.12, // Keeping slightly reduced pitch rate for better control
+      rollRate: 0.12, // Keeping slightly reduced roll rate for better control
+      modelType: 2, // Choose model based on level
+    };
+
+    this.playerAircraft = new PlayerAircraft(playerConfig);
     this.scene.add(this.playerAircraft.getObject());
 
-    // Position aircraft directly on the runway (Y value of 2 instead of 20)
-    // This prevents the "dropping" effect when the game starts
-    this.playerAircraft.setPosition(new THREE.Vector3(0, 2, -3000));
+    // Position aircraft at a more reasonable starting point
+    // Reduced distance from -3000 to -500, and increased height to 50
+    this.playerAircraft.setPosition(new THREE.Vector3(0, 50, -500));
 
     // Pre-position the camera to match where it will be in gameplay
     // This prevents an initial "zoom" effect when the game starts
@@ -66,6 +75,12 @@ export class GameScene implements Scene {
       aircraftPos.z + this.followCamOffset.z
     );
     this.camera.lookAt(aircraftPos);
+
+    // Initialize weapon system AFTER player aircraft is created
+    this.weaponSystem = new WeaponSystem(
+      this.playerAircraft,
+      this.projectileManager
+    );
 
     // Initialize HUD
     this.hud = new SimpleHUD();
@@ -132,6 +147,37 @@ export class GameScene implements Scene {
     // Update player aircraft
     this.playerAircraft.update(deltaTime, inputManager);
 
+    // Check if firing key is pressed for debugging
+    if (inputManager.isKeyPressed(InputKey.SPACE)) {
+      console.log("GAME: Space key is pressed - should be firing");
+
+      // Log camera position and direction for debugging
+      console.log("GAME: Camera position:", this.camera.position.toArray());
+      console.log("GAME: Camera rotation:", this.camera.rotation.toArray());
+      console.log(
+        "GAME: Camera lookAt target:",
+        this.currentLookTarget ? this.currentLookTarget.toArray() : "none"
+      );
+
+      // Log player position
+      const playerPos = this.playerAircraft.getPosition();
+      console.log("GAME: Player position:", playerPos.toArray());
+
+      // Calculate distance between camera and player
+      const cameraToPlayerDistance = this.camera.position.distanceTo(playerPos);
+      console.log(
+        "GAME: Distance from camera to player:",
+        cameraToPlayerDistance
+      );
+    }
+
+    // Update weapon system
+    this.weaponSystem.handleInput(inputManager, timeManager.getElapsedTime());
+    this.weaponSystem.update(deltaTime, timeManager.getElapsedTime());
+
+    // Update projectiles
+    this.projectileManager.update(deltaTime);
+
     // Update camera position to follow the player aircraft
     this.updateCamera();
 
@@ -148,6 +194,9 @@ export class GameScene implements Scene {
       position.y,
       this.playerAircraft.getThrottle()
     );
+
+    // Update the HUD with weapon information
+    this.hud.updateWeaponInfo(this.weaponSystem.getCurrentWeaponName());
   }
 
   /**
@@ -170,7 +219,7 @@ export class GameScene implements Scene {
       aircraftPos.z - Math.cos(aircraftRotation.y) * followDistance;
 
     // Smoothing factor for camera position - creates follow delay
-    const positionSmoothingFactor = 0.1; // Increased from 0.05 to 0.1 for tighter following
+    const positionSmoothingFactor = 0.05; // Reduced from 0.1 to 0.05 for smoother, more gradual camera movement
 
     // Interpolate current camera position with target position
     this.camera.position.x +=
@@ -184,8 +233,8 @@ export class GameScene implements Scene {
     // This is where we want to look when flying straight
     const baseLookTarget = new THREE.Vector3(
       aircraftPos.x,
-      aircraftPos.y - 1.5, // Look down to see more of the aircraft top
-      aircraftPos.z + 3 // Look ahead of the aircraft slightly
+      aircraftPos.y - 0.5, // Reduced the look-down offset for better visibility
+      aircraftPos.z + 5 // Increased from 3 to 5 to look further ahead
     );
 
     // Calculate roll-based offset (for dynamic movement during turns)
@@ -257,5 +306,13 @@ export class GameScene implements Scene {
 
     // Destroy HUD
     this.hud.destroy();
+
+    // Clean up projectiles
+    this.projectileManager.clearAllProjectiles();
+
+    // Clean up weapon system resources
+    if (this.weaponSystem) {
+      this.weaponSystem.dispose();
+    }
   }
 }

@@ -99,17 +99,41 @@ The Java codebase is located in the `java` repository, besure to check that when
 
 13. **Implement enemy AI**
 
-    - [ ] Convert AI behavior from Java
-    - [ ] Create path finding and targeting systems
-    - [ ] Implement difficulty scaling
-    - [ ] Add enemy types and variations
+    - [ ] **Step 1: Create basic enemy class structure**
+      - [ ] Implement Enemy base class
+      - [ ] Add health and damage system
+      - [ ] Create spawning mechanism
+    - [ ] **Step 2: Implement basic AI behavior**
+      - [ ] Add movement patterns and flight physics
+      - [ ] Implement targeting system for player
+      - [ ] Create attack patterns
+    - [ ] **Step 3: Add enemy types and variations**
+      - [ ] Create different enemy classes with unique behaviors
+      - [ ] Implement enemy difficulty scaling
+      - [ ] Add visual distinctions between enemy types
+    - [ ] **Step 4: Create enemy spawning and wave system**
+      - [ ] Implement enemy wave management
+      - [ ] Add difficulty progression
+      - [ ] Create boss encounters
 
 14. **Add weapons systems**
 
-    - [ ] Implement projectile physics
-    - [ ] Create weapon effects and animations
-    - [ ] Add impact detection and damage
-    - [ ] Implement weapon upgrades and variations
+    - [ ] **Step 1: Create basic projectile system** _(IN PROGRESS)_
+      - [ ] Implement Projectile class with physics and lifecycle management
+      - [ ] Add collision detection for projectiles
+      - [ ] Create visual effects for projectiles (trails, etc.)
+    - [ ] **Step 2: Implement weapon firing mechanism**
+      - [ ] Connect player input to weapon firing
+      - [ ] Add weapon mounting points to player aircraft
+      - [ ] Implement rate of fire and ammo limits
+    - [ ] **Step 3: Add weapon effects and animations**
+      - [ ] Create muzzle flash and firing effects
+      - [ ] Add sound effects for different weapon types
+      - [ ] Implement impact effects and explosions
+    - [ ] **Step 4: Implement weapon types and upgrades**
+      - [ ] Create different weapon classifications (machine guns, missiles, etc.)
+      - [ ] Add weapon switching mechanism
+      - [ ] Implement weapon upgrade system
 
 15. **Create mission/objective system**
     - [ ] Define mission parameters and goals
@@ -153,7 +177,3 @@ The Java codebase is located in the `java` repository, besure to check that when
     - [ ] Implement code splitting and lazy loading
     - [ ] Create asset compression and optimization
     - [ ] Configure deployment to hosting service
-
-## Issuses
-
-- [ ] Fix control of plane, it trends downwards when flying ensure it matches the java implementation
