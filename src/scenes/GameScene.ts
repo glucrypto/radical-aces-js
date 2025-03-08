@@ -12,12 +12,13 @@ export class GameScene implements Scene {
   private scene: THREE.Scene;
   private camera: THREE.PerspectiveCamera;
   private playerAircraft: PlayerAircraft;
-  private followCamOffset: THREE.Vector3 = new THREE.Vector3(0, 10, 40);
+  private followCamOffset: THREE.Vector3 = new THREE.Vector3(0, 3, 1);
   private hud: SimpleHUD;
   private levelLoader: LevelLoader;
   private currentLevel: Level | null = null;
   private assetManager: AssetManager;
   private currentLevelId: number = 0;
+  private currentLookTarget: THREE.Vector3 | null = null;
 
   constructor(
     scene: THREE.Scene,
@@ -29,6 +30,8 @@ export class GameScene implements Scene {
 
     // Ensure camera can see the distant sky dome
     camera.far = 200000;
+    // Set a narrower field of view to make the aircraft appear larger
+    camera.fov = 45; // Default is typically 60 or 75
     camera.updateProjectionMatrix();
 
     this.assetManager = assetManager;
@@ -159,16 +162,69 @@ export class GameScene implements Scene {
     const followDistance = this.followCamOffset.z;
     const heightOffset = this.followCamOffset.y;
 
-    // Directly set camera position with no lerping to eliminate jitter
-    // This creates a more rigid but stable camera
-    this.camera.position.set(
-      aircraftPos.x - Math.sin(aircraftRotation.y) * followDistance,
-      aircraftPos.y + heightOffset,
-      aircraftPos.z - Math.cos(aircraftRotation.y) * followDistance
+    // Calculate the ideal camera position - this will be behind the aircraft
+    const targetX =
+      aircraftPos.x - Math.sin(aircraftRotation.y) * followDistance;
+    const targetY = aircraftPos.y + heightOffset;
+    const targetZ =
+      aircraftPos.z - Math.cos(aircraftRotation.y) * followDistance;
+
+    // Smoothing factor for camera position - creates follow delay
+    const positionSmoothingFactor = 0.1; // Increased from 0.05 to 0.1 for tighter following
+
+    // Interpolate current camera position with target position
+    this.camera.position.x +=
+      (targetX - this.camera.position.x) * positionSmoothingFactor;
+    this.camera.position.y +=
+      (targetY - this.camera.position.y) * positionSmoothingFactor;
+    this.camera.position.z +=
+      (targetZ - this.camera.position.z) * positionSmoothingFactor;
+
+    // Create a base look position directly at the aircraft
+    // This is where we want to look when flying straight
+    const baseLookTarget = new THREE.Vector3(
+      aircraftPos.x,
+      aircraftPos.y - 1.5, // Look down to see more of the aircraft top
+      aircraftPos.z + 3 // Look ahead of the aircraft slightly
     );
 
-    // Look directly at aircraft with no smoothing
-    this.camera.lookAt(aircraftPos);
+    // Calculate roll-based offset (for dynamic movement during turns)
+    // First, create a vector from camera to aircraft
+    const cameraToAircraft = new THREE.Vector3();
+    cameraToAircraft.subVectors(aircraftPos, this.camera.position);
+
+    // Cross product of up vector and aircraft-to-camera gives us the "side" direction
+    const upVector = new THREE.Vector3(0, 1, 0);
+    const turnDirection = new THREE.Vector3();
+    turnDirection.crossVectors(cameraToAircraft, upVector).normalize();
+
+    // Scale the turn offset based on the aircraft's roll angle
+    const rollOffset = aircraftRotation.z * 10; // Controls how much aircraft shifts in frame during turns
+
+    // Apply the roll offset to create a target look position
+    const lookAtPosition = baseLookTarget.clone();
+    lookAtPosition.x += turnDirection.x * rollOffset;
+    lookAtPosition.z += turnDirection.z * rollOffset;
+
+    // Smoothing factor for camera look target - creates view lag
+    // Higher = faster centering when aircraft levels out
+    const lookSmoothingFactor = 0.15;
+
+    // Create a current look target property if it doesn't exist
+    if (!this.currentLookTarget) {
+      this.currentLookTarget = baseLookTarget.clone();
+    }
+
+    // Smoothly transition the look target
+    this.currentLookTarget.x +=
+      (lookAtPosition.x - this.currentLookTarget.x) * lookSmoothingFactor;
+    this.currentLookTarget.y +=
+      (lookAtPosition.y - this.currentLookTarget.y) * lookSmoothingFactor;
+    this.currentLookTarget.z +=
+      (lookAtPosition.z - this.currentLookTarget.z) * lookSmoothingFactor;
+
+    // Point the camera at the smoothed look target
+    this.camera.lookAt(this.currentLookTarget);
   }
 
   /**

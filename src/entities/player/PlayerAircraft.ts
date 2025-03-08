@@ -165,9 +165,6 @@ export default class PlayerAircraft {
     // Finally update aircraft position and rotation based on velocity
     // This should directly apply our rotation to the mesh without any other changes
     this.updateTransform();
-
-    // Update camera to follow aircraft
-    this.updateCameraTilt();
   }
 
   private handleInput(inputManager: InputManager): void {
@@ -197,31 +194,31 @@ export default class PlayerAircraft {
 
     // SIMPLE BUT FLUID CONTROLS
     // Use a consistent turn rate
-    const turnRate = 0.01;
+    const turnRate = 0.025; // Increased significantly for faster turns
 
     // Target values for smoother transitions
     let targetPitch = 0;
     let targetRoll = 0;
 
-    // LEFT+UP = BANK LEFT AND CLIMB
+    // LEFT+UP = EXTREME BANK LEFT AND CLIMB
     if (left && up) {
-      // Set target values for smooth transition
-      targetRoll = -0.3; // Bank left
+      // Set target values for EXTREME banking
+      targetRoll = -1.4; // Almost vertical bank for extreme fighter jet turns (-80 degrees)
       targetPitch = -0.3; // Nose up
 
-      // Turn based on bank angle
-      this.rotation.y += turnRate * 2; // Faster turn rate for tight turns
+      // Turn based on bank angle - much faster turn rate
+      this.rotation.y += turnRate * 3.0;
 
       this.isInBankedTurn = true;
     }
-    // RIGHT+UP = BANK RIGHT AND CLIMB
+    // RIGHT+UP = EXTREME BANK RIGHT AND CLIMB
     else if (right && up) {
-      // Set target values for smooth transition
-      targetRoll = 0.3; // Bank right
+      // Set target values for EXTREME banking
+      targetRoll = 1.4; // Almost vertical bank for fighter jet turns (80 degrees)
       targetPitch = -0.3; // Nose up
 
-      // Turn based on bank angle
-      this.rotation.y -= turnRate * 2; // Faster turn rate for tight turns
+      // Turn based on bank angle - much faster turn rate
+      this.rotation.y -= turnRate * 3.0;
 
       this.isInBankedTurn = true;
     }
@@ -234,35 +231,33 @@ export default class PlayerAircraft {
         targetPitch = 0.3; // Pitch down
       }
 
-      // Process LEFT/RIGHT controls
+      // Process LEFT/RIGHT controls - EXTREME BANKING
       if (left) {
-        targetRoll = -0.2; // Roll left
-        this.rotation.y += turnRate; // Turn left
+        targetRoll = -1.2; // EXTREME roll for fighter jet (about 70 degrees bank)
+        this.rotation.y += turnRate * 2.5; // Much faster turn rate
       } else if (right) {
-        targetRoll = 0.2; // Roll right
-        this.rotation.y -= turnRate; // Turn right
+        targetRoll = 1.2; // EXTREME roll for fighter jet (about 70 degrees bank)
+        this.rotation.y -= turnRate * 2.5; // Much faster turn rate
       }
     }
 
-    // SMOOTH TRANSITIONS - Simple but effective
-    // Use consistent, stable easing between control states
-
-    // Transition rate - higher = faster response
-    const transitionRate = 0.15;
+    // MUCH FASTER RESPONSE - fighter jets respond extremely quickly
+    // Transition rate - MUCH higher for instant fighter jet response
+    const transitionRate = 0.3; // Doubled from 0.15 for very fast response
 
     // Smooth transition for pitch (up/down)
     if (Math.abs(this.rotation.x - targetPitch) < 0.01) {
       this.rotation.x = targetPitch; // Snap when very close
     } else {
-      // Gradual interpolation
+      // Gradual interpolation but much faster
       this.rotation.x += (targetPitch - this.rotation.x) * transitionRate;
     }
 
-    // Smooth transition for roll (left/right)
+    // Fast transition for roll (left/right) - fighter jets roll EXTREMELY quickly
     if (Math.abs(this.rotation.z - targetRoll) < 0.01) {
       this.rotation.z = targetRoll; // Snap when very close
     } else {
-      // Gradual interpolation
+      // Fast interpolation for immediate fighter jet response
       this.rotation.z += (targetRoll - this.rotation.z) * transitionRate;
     }
   }
@@ -314,6 +309,27 @@ export default class PlayerAircraft {
     // This should overwrite any previous rotation
     this.mesh.rotation.copy(this.rotation);
 
+    // Visual control surface movements for turns - simulates aileron deflection
+    // Get the current roll angle to determine intensity of turn
+    const rollAngle = this.rotation.z;
+
+    // Apply visual deflection based on roll angle (without waiting for threshold)
+    // Important: For roll, positive is right roll, negative is left roll
+
+    // The deflection direction should match real aircraft control surfaces:
+    // When rolling left (negative roll): Right aileron up, left aileron down
+    // When rolling right (positive roll): Left aileron up, right aileron down
+
+    // Apply control surface deflection
+    if (Math.abs(rollAngle) > 0.02) {
+      // Small threshold to avoid tiny movements
+      // Apply deflection to control surfaces based on roll direction
+      this.applyControlSurfaceDeflection(rollAngle);
+    } else {
+      // Reset deflection when not turning
+      this.resetControlSurfaces();
+    }
+
     // Ground safety
     if (this.mesh.position.y < 5) {
       this.mesh.position.y = 5;
@@ -321,36 +337,107 @@ export default class PlayerAircraft {
     }
   }
 
-  private updateCameraTilt(): void {
-    // Find camera
-    const scene = this.mesh.parent;
-    if (!scene) return;
+  /**
+   * Apply aileron and control surface deflection during turns
+   */
+  private applyControlSurfaceDeflection(rollAngle: number): void {
+    // Get roll direction and intensity
+    const rollDirection = Math.sign(rollAngle);
+    const rollIntensity = Math.min(Math.abs(rollAngle) / 0.45, 1);
 
-    const camera = scene.children.find(
-      (obj) => obj.type === "PerspectiveCamera"
-    );
-    if (!camera) return;
+    // Find control surfaces or wings if they exist in the model
+    this.mesh.traverse((child) => {
+      // Convert name to lowercase for case-insensitive matching
+      const childName = child.name.toLowerCase();
 
-    const cam = camera as THREE.PerspectiveCamera;
+      // Identify wing parts
+      const isLeftWing =
+        childName.includes("leftwing") ||
+        childName.includes("wing_l") ||
+        childName.includes("left_wing") ||
+        childName.includes("lwing");
+      const isRightWing =
+        childName.includes("rightwing") ||
+        childName.includes("wing_r") ||
+        childName.includes("right_wing") ||
+        childName.includes("rwing");
 
-    // Camera settings
-    const distance = 25; // Distance behind
-    const height = 10; // Height above
+      // Identify specific control surfaces if available
+      const isLeftAileron =
+        childName.includes("leftail") || childName.includes("l_aileron");
+      const isRightAileron =
+        childName.includes("rightail") || childName.includes("r_aileron");
 
-    // Position camera based on aircraft yaw
-    const angle = this.rotation.y;
-    const x = this.mesh.position.x - Math.sin(angle) * distance;
-    const z = this.mesh.position.z - Math.cos(angle) * distance;
-    const y = this.mesh.position.y + height;
+      // Get the child as a mesh if possible
+      const mesh = child as THREE.Mesh;
 
-    // Set camera position
-    cam.position.set(x, y, z);
+      if (mesh && mesh.rotation) {
+        // CORRECT AILERON DEFLECTION:
 
-    // Look at aircraft
-    cam.lookAt(this.mesh.position);
+        // LEFT ROLL (negative rollAngle):
+        // - Right aileron goes UP (negative Z rotation)
+        // - Left aileron goes DOWN (positive Z rotation)
 
-    // Apply gentle camera roll based on aircraft bank
-    cam.rotation.z = this.rotation.z * 0.3;
+        // RIGHT ROLL (positive rollAngle):
+        // - Left aileron goes UP (negative Z rotation)
+        // - Right aileron goes DOWN (positive Z rotation)
+
+        if (isLeftAileron || isLeftWing) {
+          // Left wing/aileron - for LEFT roll goes DOWN, for RIGHT roll goes UP
+          // So deflection is opposite of roll direction
+          mesh.rotation.z = rollDirection * 0.3 * rollIntensity;
+        } else if (isRightAileron || isRightWing) {
+          // Right wing/aileron - for LEFT roll goes UP, for RIGHT roll goes DOWN
+          // So deflection is same as roll direction but negative
+          mesh.rotation.z = -rollDirection * 0.3 * rollIntensity;
+        }
+
+        // Handle elevator (pitch control)
+        if (childName.includes("elevator") || childName.includes("horz_stab")) {
+          // Elevator deflects based on pitch (positive pitch = nose down = positive elevator)
+          mesh.rotation.x = this.rotation.x * 0.5;
+        }
+
+        // Handle rudder (yaw control)
+        if (childName.includes("rudder") || childName.includes("vert_stab")) {
+          // Rudder deflects in the direction of turn
+          // In a roll, we often use some rudder in the same direction
+          mesh.rotation.y = -rollDirection * 0.2 * rollIntensity;
+        }
+      }
+    });
+  }
+
+  /**
+   * Reset all control surface deflections back to neutral
+   */
+  private resetControlSurfaces(): void {
+    this.mesh.traverse((child) => {
+      const childName = child.name.toLowerCase();
+
+      // Check if this is any type of control surface
+      const isControlSurface =
+        childName.includes("wing") ||
+        childName.includes("aileron") ||
+        childName.includes("rudder") ||
+        childName.includes("stab") ||
+        childName.includes("elevator");
+
+      if (isControlSurface) {
+        const mesh = child as THREE.Mesh;
+        if (mesh && mesh.rotation) {
+          // Gradually reset rotations back to zero with smooth damping
+          mesh.rotation.z *= 0.8;
+          mesh.rotation.x *= 0.8;
+          mesh.rotation.y *= 0.8;
+
+          // Snap to zero when very close to avoid tiny values
+          if (Math.abs(mesh.rotation.z) < 0.01) mesh.rotation.z = 0;
+          if (Math.abs(mesh.rotation.x) < 0.01) mesh.rotation.x = 0;
+          if (Math.abs(mesh.rotation.y) < 0.01) mesh.rotation.y = 0;
+        }
+      }
+    });
   }
 
   public getObject(): THREE.Group {
