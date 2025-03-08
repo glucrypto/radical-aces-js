@@ -17,6 +17,12 @@ export enum InputKey {
   D = "d",
   Q = "q",
   E = "e",
+  Z = "z",
+  // Speed control keys (matching Java implementation)
+  PLUS = "+",
+  EQUAL = "=",
+  MINUS = "-",
+  BACKSPACE = "Backspace",
   // Aircraft selection keys
   ONE = "1",
   TWO = "2",

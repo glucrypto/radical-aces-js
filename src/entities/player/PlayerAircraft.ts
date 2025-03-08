@@ -33,6 +33,7 @@ export default class PlayerAircraft {
   private isAccelerating: boolean;
   private isDecelerating: boolean;
   private modelType: number;
+  private isInBankedTurn: boolean = false; // New flag to track banked turn state
 
   constructor(config: PlayerAircraftConfig) {
     // Initialize physics properties
@@ -41,17 +42,18 @@ export default class PlayerAircraft {
     this.rotation = new THREE.Euler(0, 0, 0, "YXZ");
     this.rotationVelocity = new THREE.Vector3(0, 0, 0);
 
-    // Set aircraft characteristics from config
-    this.maxSpeed = config.maxSpeed || 100;
-    this.accelerationRate = config.acceleration || 0.05;
-    this.decelerationRate = config.deceleration || 0.02;
-    this.turnRate = config.turnRate || 0.02;
-    this.pitchRate = config.pitchRate || 0.02;
-    this.rollRate = config.rollRate || 0.03;
+    // Set characteristics for arcade-style flight
+    // High values make controls more responsive
+    this.maxSpeed = config.maxSpeed || 200; // High max speed for excitement
+    this.accelerationRate = config.acceleration || 0.2; // Quick acceleration
+    this.decelerationRate = config.deceleration || 0.2; // Quick deceleration
+    this.turnRate = config.turnRate || 0.2; // Snappy turning
+    this.pitchRate = config.pitchRate || 0.2; // Responsive pitch
+    this.rollRate = config.rollRate || 0.2; // Quick rolling
     this.modelType = config.modelType || 1;
 
-    // Initialize state
-    this.throttle = 0;
+    // Start with some throttle for immediate movement
+    this.throttle = 0.5;
     this.isAccelerating = false;
     this.isDecelerating = false;
 
@@ -154,148 +156,201 @@ export default class PlayerAircraft {
   }
 
   public update(deltaTime: number, inputManager: InputManager): void {
-    // Process input to control the aircraft
+    // Process user input FIRST - this should set our exact rotation values
     this.handleInput(inputManager);
 
-    // Apply physics
+    // Then apply physics which should NEVER modify rotation values
     this.updatePhysics(deltaTime);
 
-    // Update the aircraft mesh position and rotation
+    // Finally update aircraft position and rotation based on velocity
+    // This should directly apply our rotation to the mesh without any other changes
     this.updateTransform();
+
+    // Update camera to follow aircraft
+    this.updateCameraTilt();
   }
 
   private handleInput(inputManager: InputManager): void {
-    // Reset acceleration and rotation flags
-    this.isAccelerating = false;
-    this.isDecelerating = false;
-    this.rotationVelocity.set(0, 0, 0);
+    // Reset banked turn flag
+    this.isInBankedTurn = false;
 
-    // Handle throttle control - make more responsive
-    if (
+    // Get key states
+    const up =
       inputManager.isKeyPressed(InputKey.UP) ||
-      inputManager.isKeyPressed(InputKey.W)
-    ) {
-      this.isAccelerating = true;
-    }
-
-    if (
+      inputManager.isKeyPressed(InputKey.W);
+    const down =
       inputManager.isKeyPressed(InputKey.DOWN) ||
-      inputManager.isKeyPressed(InputKey.S)
-    ) {
-      this.isDecelerating = true;
-    }
-
-    // Handle turning (yaw) control - more arcade-like snappy controls
-    if (
+      inputManager.isKeyPressed(InputKey.S);
+    const left =
       inputManager.isKeyPressed(InputKey.LEFT) ||
-      inputManager.isKeyPressed(InputKey.A)
-    ) {
-      this.rotationVelocity.y = this.turnRate * 1.5; // Increased turning rate
-      // Roll the aircraft when turning - more pronounced roll
-      this.rotationVelocity.z = this.rollRate * 1.5;
-    }
-
-    if (
+      inputManager.isKeyPressed(InputKey.A);
+    const right =
       inputManager.isKeyPressed(InputKey.RIGHT) ||
-      inputManager.isKeyPressed(InputKey.D)
-    ) {
-      this.rotationVelocity.y = -this.turnRate * 1.5; // Increased turning rate
-      // Roll the aircraft in the opposite direction when turning right
-      this.rotationVelocity.z = -this.rollRate * 1.5;
-    }
+      inputManager.isKeyPressed(InputKey.D);
 
-    // Handle pitch control - more responsive
-    if (inputManager.isKeyPressed(InputKey.Q)) {
-      this.rotationVelocity.x = -this.pitchRate * 1.5; // Pitch up - more responsive
-    }
+    // EXTREME SPEED CONTROLS
+    // SHIFT = Rocket boost (extreme acceleration)
+    this.isAccelerating = inputManager.isKeyPressed(InputKey.SHIFT);
 
-    if (inputManager.isKeyPressed(InputKey.E)) {
-      this.rotationVelocity.x = this.pitchRate * 1.5; // Pitch down - more responsive
-    }
+    // Z KEY FOR DECELERATION - reliable brake key
+    this.isDecelerating = inputManager.isKeyPressed(InputKey.Z);
 
-    // Reset roll to level when not turning - quicker auto-leveling
-    if (
-      !inputManager.isKeyPressed(InputKey.LEFT) &&
-      !inputManager.isKeyPressed(InputKey.RIGHT) &&
-      !inputManager.isKeyPressed(InputKey.A) &&
-      !inputManager.isKeyPressed(InputKey.D)
-    ) {
-      // Auto-level roll - more quickly return to level flight
-      if (this.mesh.rotation.z > 0.01) {
-        this.rotationVelocity.z = -this.rollRate * 1.2;
-      } else if (this.mesh.rotation.z < -0.01) {
-        this.rotationVelocity.z = this.rollRate * 1.2;
+    // SIMPLE BUT FLUID CONTROLS
+    // Use a consistent turn rate
+    const turnRate = 0.01;
+
+    // Target values for smoother transitions
+    let targetPitch = 0;
+    let targetRoll = 0;
+
+    // LEFT+UP = BANK LEFT AND CLIMB
+    if (left && up) {
+      // Set target values for smooth transition
+      targetRoll = -0.3; // Bank left
+      targetPitch = -0.3; // Nose up
+
+      // Turn based on bank angle
+      this.rotation.y += turnRate * 2; // Faster turn rate for tight turns
+
+      this.isInBankedTurn = true;
+    }
+    // RIGHT+UP = BANK RIGHT AND CLIMB
+    else if (right && up) {
+      // Set target values for smooth transition
+      targetRoll = 0.3; // Bank right
+      targetPitch = -0.3; // Nose up
+
+      // Turn based on bank angle
+      this.rotation.y -= turnRate * 2; // Faster turn rate for tight turns
+
+      this.isInBankedTurn = true;
+    }
+    // Individual controls
+    else {
+      // Process UP/DOWN controls
+      if (up) {
+        targetPitch = -0.3; // Pitch up
+      } else if (down) {
+        targetPitch = 0.3; // Pitch down
       }
+
+      // Process LEFT/RIGHT controls
+      if (left) {
+        targetRoll = -0.2; // Roll left
+        this.rotation.y += turnRate; // Turn left
+      } else if (right) {
+        targetRoll = 0.2; // Roll right
+        this.rotation.y -= turnRate; // Turn right
+      }
+    }
+
+    // SMOOTH TRANSITIONS - Simple but effective
+    // Use consistent, stable easing between control states
+
+    // Transition rate - higher = faster response
+    const transitionRate = 0.15;
+
+    // Smooth transition for pitch (up/down)
+    if (Math.abs(this.rotation.x - targetPitch) < 0.01) {
+      this.rotation.x = targetPitch; // Snap when very close
+    } else {
+      // Gradual interpolation
+      this.rotation.x += (targetPitch - this.rotation.x) * transitionRate;
+    }
+
+    // Smooth transition for roll (left/right)
+    if (Math.abs(this.rotation.z - targetRoll) < 0.01) {
+      this.rotation.z = targetRoll; // Snap when very close
+    } else {
+      // Gradual interpolation
+      this.rotation.z += (targetRoll - this.rotation.z) * transitionRate;
     }
   }
 
   private updatePhysics(deltaTime: number): void {
-    // Normalize deltaTime to ensure consistent behavior at different frame rates
-    // This is crucial for eliminating jitter
-    const normalizedDelta = Math.min(deltaTime, 0.03) * 60; // Cap delta at 30fps equivalent
+    // RIDICULOUS SPEED CONTROLS - Absurdly fast
 
-    // Apply throttle changes with constant rate
+    // Gentle throttle transitions
     if (this.isAccelerating) {
-      // Apply even smoother acceleration from a standstill
-      const accelerationFactor = this.throttle < 0.1 ? 0.5 : 1.0;
-      this.throttle = Math.min(
-        this.throttle +
-          this.accelerationRate * accelerationFactor * normalizedDelta,
-        1
-      );
+      this.throttle = Math.min(this.throttle + 0.1, 1);
     } else if (this.isDecelerating) {
-      this.throttle = Math.max(
-        this.throttle - this.decelerationRate * normalizedDelta,
-        0
-      );
+      this.throttle = Math.max(this.throttle - 0.1, 0);
     }
 
-    // Calculate forward vector based on aircraft's current rotation
-    const forwardDirection = new THREE.Vector3(0, 0, 1);
-    forwardDirection.applyEuler(this.mesh.rotation);
+    // Base speed calculation - RIDICULOUS speed
+    const minSpeedPercent = 0.2; // 20% minimum speed
+    const baseSpeed =
+      this.maxSpeed * (minSpeedPercent + this.throttle * (1 - minSpeedPercent));
 
-    // Apply consistent speed calculation
-    const currentSpeed = this.maxSpeed * this.throttle;
+    // Calculate velocity based on aircraft direction
+    const direction = new THREE.Vector3(0, 0, 1);
+    direction.applyEuler(this.rotation);
 
-    // Set velocity with no additional scaling for consistency
-    this.velocity.x = forwardDirection.x * currentSpeed * normalizedDelta;
-    this.velocity.y = forwardDirection.y * currentSpeed * normalizedDelta;
-    this.velocity.z = forwardDirection.z * currentSpeed * normalizedDelta;
+    // RIDICULOUS SPEED
+    const speedScale = 1.0;
 
-    // Apply gravity with constant scaling, but only if we're not on the ground
-    // This prevents the "dropping" effect when starting on the runway
-    const minGroundHeight = 2.5; // Just slightly above the ground level
-    if (this.throttle < 0.3 && this.mesh.position.y > minGroundHeight) {
-      const gravityEffect = (0.3 - this.throttle) * 0.15;
-      this.velocity.y -= gravityEffect * normalizedDelta;
+    // Apply movement based on aircraft orientation
+    this.velocity.x = direction.x * baseSpeed * speedScale;
+    this.velocity.y = direction.y * baseSpeed * speedScale;
+    this.velocity.z = direction.z * baseSpeed * speedScale;
+
+    // Simple lift and gravity
+    if (this.throttle > 0.3) {
+      // Apply lift
+      this.velocity.y += 0.003;
     }
 
-    // Update rotation with constant rate
-    this.rotation.x += this.rotationVelocity.x * normalizedDelta;
-    this.rotation.y += this.rotationVelocity.y * normalizedDelta;
-    this.rotation.z += this.rotationVelocity.z * normalizedDelta;
-
-    // Apply constraints to prevent extreme rotations
-    this.rotation.x = Math.max(
-      Math.min(this.rotation.x, Math.PI / 3),
-      -Math.PI / 3
-    );
+    // Apply gravity
+    this.velocity.y -= 0.002;
   }
 
   private updateTransform(): void {
-    // Apply rotation directly
-    this.mesh.rotation.x = this.rotation.x;
-    this.mesh.rotation.y = this.rotation.y;
-    this.mesh.rotation.z = this.rotation.z;
-
     // Apply velocity directly to position
-    this.mesh.position.add(this.velocity);
+    this.mesh.position.x += this.velocity.x;
+    this.mesh.position.y += this.velocity.y;
+    this.mesh.position.z += this.velocity.z;
 
-    // Simple ground collision detection with constant
-    if (this.mesh.position.y < 2) {
-      this.mesh.position.y = 2;
+    // Apply exact rotation values from our controlled variables
+    // This should overwrite any previous rotation
+    this.mesh.rotation.copy(this.rotation);
+
+    // Ground safety
+    if (this.mesh.position.y < 5) {
+      this.mesh.position.y = 5;
       this.velocity.y = 0;
     }
+  }
+
+  private updateCameraTilt(): void {
+    // Find camera
+    const scene = this.mesh.parent;
+    if (!scene) return;
+
+    const camera = scene.children.find(
+      (obj) => obj.type === "PerspectiveCamera"
+    );
+    if (!camera) return;
+
+    const cam = camera as THREE.PerspectiveCamera;
+
+    // Camera settings
+    const distance = 25; // Distance behind
+    const height = 10; // Height above
+
+    // Position camera based on aircraft yaw
+    const angle = this.rotation.y;
+    const x = this.mesh.position.x - Math.sin(angle) * distance;
+    const z = this.mesh.position.z - Math.cos(angle) * distance;
+    const y = this.mesh.position.y + height;
+
+    // Set camera position
+    cam.position.set(x, y, z);
+
+    // Look at aircraft
+    cam.lookAt(this.mesh.position);
+
+    // Apply gentle camera roll based on aircraft bank
+    cam.rotation.z = this.rotation.z * 0.3;
   }
 
   public getObject(): THREE.Group {
@@ -311,7 +366,8 @@ export default class PlayerAircraft {
   }
 
   public getCurrentSpeed(): number {
-    return this.maxSpeed * this.throttle;
+    // Return the actual speed for UI display
+    return Math.round(this.maxSpeed * this.throttle);
   }
 
   /**

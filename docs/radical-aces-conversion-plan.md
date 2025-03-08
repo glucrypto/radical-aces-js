@@ -156,4 +156,4 @@ The Java codebase is located in the `java` repository, besure to check that when
 
 ## Issuses
 
-- [ ] Fix control of plane, it trends downwards when flying
+- [ ] Fix control of plane, it trends downwards when flying ensure it matches the java implementation
